@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solr Live Search</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            padding: 20px;
+            background-color: #f4f4f9;
+            margin: 0;
+        }
+
+        h2 {
+            color: #333;
+            text-align: center;
+        }
+
+        .search-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        input[type="text"], select {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+
+        #autocomplete {
+            border: 1px solid #ccc;
+            max-width: 500px;
+            position: absolute;
+            background: white;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            border-radius: 5px;
+        }
+
+        #autocomplete div {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        #autocomplete div:hover {
+            background-color: #f0f0f0;
+        }
+
+        .results-container {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .result-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-card h3 {
+            font-size: 18px;
+            margin: 0;
+            color: #333;
+        }
+
+        .result-card p {
+            color: #777;
+            font-size: 14px;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .error-message {
+            color: red;
+            font-size: 16px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h2>Solr Search with Filters & Autocomplete</h2>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search title..." aria-label="Search Title" autocomplete="off">
+        <div id="autocomplete" role="listbox" aria-live="polite"></div>
+
+        <select id="category" aria-label="Select Category">
+            <option value="">All Categories</option>
+            <option value="java">Java</option>
+            <option value="solr">Solr</option>
+        </select>
+
+        <select id="published" aria-label="Select Published Status">
+            <option value="">All</option>
+            <option value="TRUE">Published</option>
+            <option value="FALSE">Unpublished</option>
+        </select>
+    </div>
+
+    <div class="results-container">
+        <div id="loading" class="loading-spinner" style="display: none;">
+            <img src="https://i.gifer.com/4V0b.gif" alt="Loading..." />
+        </div>
+        <ul id="results"></ul>
+        <div id="errorMessage" class="error-message" style="display: none;">An error occurred while fetching the data. Please try again.</div>
+    </div>
+
+    <script>
+        function fetchResults() {
+            const q = $("#searchInput").val();
+            const category = $("#category").val();
+            const published = $("#published").val();
+
+            // Show loading spinner
+            $("#loading").show();
+
+            $.get("/search", { q, category, published }, function(data) {
+                $("#results").empty();
+                $("#loading").hide();
+                if (data.length > 0) {
+                    data.forEach(item => {
+                        $("#results").append(`
+                            <li class="result-card">
+                                <h3>${item.title}</h3>
+                                <p>by ${item.author}</p>
+                            </li>
+                        `);
+                    });
+                } else {
+                    $("#results").append('<li>No results found.</li>');
+                }
+            }).fail(function() {
+                $("#loading").hide();
+                $("#errorMessage").show();
+            });
+        }
+
+        $("#searchInput, #category, #published").on("input change", fetchResults);
+
+        // Autocomplete
+        $("#searchInput").on("input", function() {
+            const q = $(this).val();
+            if (q.length < 2) {
+                $("#autocomplete").hide();
+                return;
+            }
+
+            $.get("/autocomplete", { q }, function(data) {
+                let html = "";
+                if (data.length > 0) {
+                    data.forEach(suggestion => {
+                        html += `<div class="suggestion" role="option">${suggestion}</div>`;
+                    });
+                    $("#autocomplete").html(html).show();
+                } else {
+                    $("#autocomplete").hide();
+                }
+            }).fail(function() {
+                $("#autocomplete").hide();
+            });
+        });
+
+        // Click autocomplete suggestion
+        $(document).on("click", ".suggestion", function() {
+            $("#searchInput").val($(this).text());
+            $("#autocomplete").hide();
+            fetchResults();
+        });
+
+        // Hide autocomplete on click outside
+        $(document).on("click", function(e) {
+            if (!$(e.target).closest("#searchInput, #autocomplete").length) {
+                $("#autocomplete").hide();
+            }
+        });
+    </script>
+
+</body>
+</html>
